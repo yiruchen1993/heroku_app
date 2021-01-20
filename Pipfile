@@ -9,6 +9,10 @@ flask = "*"
 python-dotenv = "*"
 psycopg2 = "*"
 sqlalchemy = "*"
+requests = "*"
+beautifulsoup4 = "*"
+selenium = "*"
+pandas = "*"
 
 [dev-packages]
 
