@@ -1,3 +1,8 @@
+from flask import Flask, request, abort
+from linebot import (
+    LineBotApi, WebhookHandler
+)
+from linebot.models import TextSendMessage
 import requests
 import bs4
 import psycopg2
@@ -8,6 +13,8 @@ import os
 
 
 load_dotenv()
+channel_token = os.getenv('YOUR_CHANNEL_ACCESS_TOKEN')
+secret = os.getenv('YOUR_CHANNEL_SECRET')
 host = os.getenv('dbhost')
 dbname = os.getenv('dbname')
 user = os.getenv('dbuser')
@@ -15,6 +22,7 @@ port = os.getenv('dbport')
 password = os.getenv('dbpassword')
 db_info = {'user': user, 'password': password, 'host': host, 'port': port, 'dbname': dbname}
 # print(db_info)
+line_bot_api = LineBotApi(channel_token)
 
 
 def connect_pg_db(db_info):
@@ -36,6 +44,7 @@ def get_area_code(location):
     sql_ = "select * from location_code_ct where target_location = '{}'".format(location)
     row = pg_conn.execute(sql_)
     area_code_ct = pd.DataFrame(row.fetchall(), columns=row.keys())
+    # TODO: add execption of area not in DB
     area_code = area_code_ct['area_code'][0]
     pg_conn.close()
     return area_code
@@ -57,10 +66,30 @@ def parse_data_from_104(location, position, ro=1, isnew=7):
         salary = j.find('span',class_='b-tag--default').text
         website = j.find('a').get('href')
         info = 'title: {}\ncompany: {}\nlocation: {}\nsalary: {}\nwebsite: https:{}'.format(title, company, locate, salary, website)
-        print(info)
+        # print(info)
         jobs_info.append(info)
     # print(jobs_info)
+    return jobs_info[0:5]
+
+
+def get_job_lists_by_user():
+    pg_conn = connect_pg_db(db_info)
+    sql_ = "select * from registration_ct"
+    row = pg_conn.execute(sql_)
+    registeration = pd.DataFrame(row.fetchall(), columns=row.keys())
+    for index, row in registeration.iterrows():
+        userid = row['user_id']
+        location = row['job_location']
+        position = row['job_position']
+        job_info = parse_data_from_104(location, position)
+        push_message(userid, '[{}][{}]\n{}'.format(location, position, '\n\n'.join(job_info)))
+    pg_conn.close()
+
+
+def push_message(userid, msg):
+    line_bot_api.push_message(userid, TextSendMessage(text=msg))
 
 
 if __name__ == "__main__":
-    parse_data_from_104('台南', "資料工程")
+    # parse_data_from_104('台南', "資料工程")
+    get_job_lists_by_user()
